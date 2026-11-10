@@ -18,13 +18,12 @@ export function Inspector() {
   const [missingEnv, setMissingEnv] = useState<string[]>([]);
   const limit = getMaxUploadBytes();
   const uploadHint = limit == null ? "PDF" : `PDF · 최대 ${formatBytes(limit)}`;
-  const hasFile = inspection.selection.kind === "file";
+  const selection = inspection.selection;
+  const hasFile = selection.kind === "file";
   const showSamples = !hasFile;
   const sampleName =
-    inspection.selection.kind === "sample"
-      ? sampleCatalog.find((sample) => sample.id === inspection.selection.id)?.name
-      : null;
-  const documentName = hasFile ? inspection.selection.file.name : sampleName;
+    selection.kind === "sample" ? sampleCatalog.find((sample) => sample.id === selection.id)?.name : null;
+  const documentName = selection.kind === "file" ? selection.file.name : sampleName;
   const showingResult = Boolean(inspection.sampleResult) || inspection.run.status === "completed";
 
   useEffect(() => {
