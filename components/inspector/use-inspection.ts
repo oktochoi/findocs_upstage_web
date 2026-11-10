@@ -210,7 +210,7 @@ export function useInspection() {
           : new AnalysisClientError("upload_failed", messages.uploadFailed, 0);
       if (resolved.code === "MISSING_ENV" || resolved.code === "analysis_not_configured") {
         setRun({ status: "unavailable", message: resolved.message });
-      } else if (resolved.code === "ANALYSIS_START_FAILED") {
+      } else if (resolved.code === "ANALYSIS_START_FAILED" || resolved.code === "QUOTA_EXCEEDED") {
         setRun({ status: "start_error", message: resolved.message });
       } else if (resolved.code === "not_pdf" || resolved.code === "file_too_large") {
         setBanner({ tone: "error", message: resolved.message });

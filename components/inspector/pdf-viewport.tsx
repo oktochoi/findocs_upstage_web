@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { Button } from "@/components/ui/button";
 
-const SCALES = [0.8, 1, 1.25, 1.5, 2];
+const ZOOMS = [1, 1.25, 1.5, 2, 3];
 
 async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
@@ -32,14 +32,16 @@ export function PdfViewport({
   onPageChange: (page: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<PDFDocumentProxy | null>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
-  const [scaleIndex, setScaleIndex] = useState(1);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
   const [docVersion, setDocVersion] = useState(0);
   const [opening, setOpening] = useState(true);
   const [renderError, setRenderError] = useState(false);
-  const scale = SCALES[scaleIndex] ?? 1;
+  const zoom = ZOOMS[zoomIndex] ?? 1;
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -88,10 +90,23 @@ export function PdfViewport({
   }, [data]);
 
   useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const update = () => {
+      const next = { width: frame.clientWidth, height: frame.clientHeight };
+      setFrameSize((current) => (current.width === next.width && current.height === next.height ? current : next));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (!visible) return;
     const doc = docRef.current;
     const canvas = canvasRef.current;
-    if (!doc || !canvas || opening) return;
+    if (!doc || !canvas || opening || frameSize.width < 2 || frameSize.height < 2) return;
 
     let cancelled = false;
     const renderState: { task: RenderTask | null } = { task: null };
@@ -100,8 +115,10 @@ export function PdfViewport({
       try {
         const pageProxy = await doc.getPage(page);
         if (cancelled) return;
+        const base = pageProxy.getViewport({ scale: 1 });
+        const fit = Math.min((frameSize.width - 16) / base.width, (frameSize.height - 16) / base.height);
         const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-        const viewport = pageProxy.getViewport({ scale: scale * pixelRatio });
+        const viewport = pageProxy.getViewport({ scale: Math.max(fit, 0.1) * zoom * pixelRatio });
         canvas.width = Math.floor(viewport.width);
         canvas.height = Math.floor(viewport.height);
         canvas.style.width = `${Math.floor(viewport.width / pixelRatio)}px`;
@@ -122,7 +139,7 @@ export function PdfViewport({
       cancelled = true;
       renderState.task?.cancel();
     };
-  }, [page, scale, visible, opening, docVersion]);
+  }, [page, zoom, visible, opening, docVersion, frameSize]);
 
   return (
     <div>
@@ -150,17 +167,17 @@ export function PdfViewport({
           <Button
             variant="secondary"
             aria-label="축소"
-            disabled={scaleIndex <= 0}
-            onClick={() => setScaleIndex((current) => Math.max(0, current - 1))}
+            disabled={zoomIndex <= 0}
+            onClick={() => setZoomIndex((current) => Math.max(0, current - 1))}
           >
             축소
           </Button>
-          <p className="w-14 text-center text-[14px] tabular-nums">{Math.round(scale * 100)}%</p>
+          <p className="w-14 text-center text-[14px] tabular-nums">{zoom === 1 ? "맞춤" : `${Math.round(zoom * 100)}%`}</p>
           <Button
             variant="secondary"
             aria-label="확대"
-            disabled={scaleIndex >= SCALES.length - 1}
-            onClick={() => setScaleIndex((current) => Math.min(SCALES.length - 1, current + 1))}
+            disabled={zoomIndex >= ZOOMS.length - 1}
+            onClick={() => setZoomIndex((current) => Math.min(ZOOMS.length - 1, current + 1))}
           >
             확대
           </Button>
@@ -171,7 +188,10 @@ export function PdfViewport({
           {pageWarning}
         </p>
       ) : null}
-      <div className="mt-4 max-h-[720px] overflow-auto rounded-lg border border-line bg-canvas p-4">
+      <div
+        ref={frameRef}
+        className={`mt-4 flex h-[calc(100dvh-13rem)] min-h-[420px] justify-center overflow-auto rounded-lg border border-line bg-canvas p-2 ${zoom > 1 ? "items-start" : "items-center"}`}
+      >
         {opening ? <p className="text-[14px] text-muted">문서를 열고 있어요.</p> : null}
         {renderError ? (
           <p className="mb-3 text-[14px] text-muted" role="status">
@@ -180,7 +200,7 @@ export function PdfViewport({
         ) : null}
         <canvas
           ref={canvasRef}
-          className={`mx-auto border border-line bg-white ${opening ? "hidden" : "block"}`}
+          className={`shrink-0 border border-line bg-white ${opening ? "hidden" : "block"}`}
           role="img"
           aria-label={numPages ? `PDF ${page}쪽 미리보기` : "PDF 미리보기"}
         />

@@ -20,7 +20,7 @@ export function Inspector() {
   const uploadHint = limit == null ? "PDF" : `PDF · 최대 ${formatBytes(limit)}`;
   const selection = inspection.selection;
   const hasFile = selection.kind === "file";
-  const showSamples = !hasFile;
+  const showSamples = selection.kind === "sample";
   const sampleName =
     selection.kind === "sample" ? sampleCatalog.find((sample) => sample.id === selection.id)?.name : null;
   const documentName = selection.kind === "file" ? selection.file.name : sampleName;
@@ -130,11 +130,6 @@ export function Inspector() {
               저장된 예시
             </span>
           ) : null}
-          {!inspection.sampleResult && inspection.run.status === "completed" ? (
-            <span className="inline-flex h-6 items-center rounded-md border border-[#BFDBFE] bg-[#EFF6FF] px-2 text-[12px] font-semibold text-[#1D4ED8]">
-              실시간 분석
-            </span>
-          ) : null}
           {!inspection.sampleResult && inspection.run.status === "completed" && inspection.run.validation.status === "fail" ? (
             <span className="inline-flex h-6 items-center rounded-md border border-line bg-[#F8FAFC] px-2 text-[12px] font-semibold text-[#475569]">
               미검증 결과
@@ -154,7 +149,7 @@ export function Inspector() {
           <p className="mt-3 flex items-start gap-2 text-[14px] leading-relaxed text-muted" role="status">
             <InfoIcon className="mt-0.5 shrink-0" />
             <span>
-              실시간 분석은 연결되지 않았습니다.
+              분석 서버가 연결되지 않았습니다.
               {missingEnv.length > 0 ? ` 서버 환경변수 ${missingEnv.join(", ")} 설정이 필요합니다.` : ""}
             </span>
           </p>

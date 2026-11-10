@@ -78,6 +78,14 @@ async function readJson(response: Response): Promise<unknown> {
  * 파일 객체와 작업 응답의 식별자 필드는 공식 스키마의 id 입니다.
  * 작업 예시 값은 job_ 로 시작하는 id 이며, job_id 필드는 응답 스키마에 없습니다.
  */
+function readErrorCode(input: unknown): string | null {
+  if (!input || typeof input !== "object") return null;
+  const error = (input as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" && code.trim() ? code.trim() : null;
+}
+
 function readResourceId(input: unknown): string | null {
   if (!input || typeof input !== "object") return null;
   const id = (input as { id?: unknown }).id;
@@ -167,7 +175,12 @@ export async function startAgentRun(fileId: string): Promise<string> {
   const data = await readJson(response);
   if (!response.ok) {
     logFailure("start", response.status);
-    throw new UpstageError("ANALYSIS_START_FAILED", messages.analysisStartFailed, 502);
+    const quota = readErrorCode(data) === "studio_subscription_quota_exceeded";
+    throw new UpstageError(
+      quota ? "QUOTA_EXCEEDED" : "ANALYSIS_START_FAILED",
+      quota ? messages.quotaExceeded : messages.analysisStartFailed,
+      502,
+    );
   }
   const jobId = readResourceId(data);
   if (!jobId) {

@@ -88,7 +88,7 @@ export function ResultCard({
 
         {run.status === "unavailable" ? (
           <div className="space-y-4">
-            <MessageBlock tone="info" title="실시간 분석을 사용할 수 없어요" message={run.message} />
+            <MessageBlock tone="info" title="분석을 사용할 수 없어요" message={run.message} />
             <div className="flex flex-wrap gap-2">
               <Button onClick={onShowSamples}>예시 결과 보기</Button>
               <Button variant="secondary" onClick={onStart} disabled={startDisabled}>
@@ -230,7 +230,7 @@ function AnalysisResultView({
   const style = riskStyles[result.risk_grade];
   const review = reviewLabel(result.needs_review);
   const hasPageJump = result.locations.some((location) => parseLocation(location).page != null);
-  const summary = `${source === "live" ? "실시간 분석" : "저장된 예시"}. 민감정보 위험도 ${result.risk_grade}. ${review}.`;
+  const summary = `${source === "sample" ? "저장된 예시. " : ""}민감정보 위험도 ${result.risk_grade}. ${review}.`;
 
   return (
     <div>
@@ -324,7 +324,7 @@ function AnalysisResultView({
             자세한 근거
             <ChevronIcon className="text-muted transition-transform group-open:rotate-180" />
           </summary>
-          <div className="space-y-3 pb-2">
+          <div className="max-h-60 space-y-3 overflow-y-auto overscroll-contain pb-2">
             <div>
               <p className="text-[13px] text-muted">발견된 민감정보</p>
               {result.sensitive_items.length === 0 ? (

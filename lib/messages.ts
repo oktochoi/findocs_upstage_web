@@ -6,9 +6,10 @@ export const messages = {
   analysisFailed: "문서 분석을 완료하지 못했어요. 다시 시도해주세요.",
   unreadablePdf: "이 PDF를 열 수 없어요. 다른 파일을 선택해주세요.",
   analysisStartFailed: "분석을 시작하지 못했어요. 잠시 후 다시 시도해주세요.",
+  quotaExceeded: "분석 사용량이 모두 소진되어 새 분석을 시작할 수 없어요. Studio 구독 한도를 확인한 뒤 다시 시도해주세요.",
   validationFailed: "최종 검증을 통과하지 못한 결과라 정상 판정으로 표시하지 않습니다.",
   notConfigured:
-    "실시간 분석 서버가 연결되지 않았어요. 저장된 예시로 결과 화면을 확인할 수 있어요.",
+    "분석 서버가 연결되지 않았어요. 저장된 예시로 결과 화면을 확인할 수 있어요.",
   jobNotFound: "분석 작업을 찾지 못했어요. 분석을 다시 시작해주세요.",
   missingEnv(names: string[]) {
     return `서버 환경변수 ${names.join(", ")} 설정이 필요합니다.`;
