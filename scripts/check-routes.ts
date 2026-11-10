@@ -254,10 +254,15 @@ const rejected = await getJob({
     { model: "판정_검사", content: [{ text: "verdict: red" }] },
   ],
 });
-const rejectedBody = JSON.parse(rejected.text) as { status: string; error: { code: string } };
-assert.equal(rejectedBody.status, "failed");
-assert.equal(rejectedBody.error.code, "VALIDATION_FAILED");
-assert.equal(rejected.text.includes("매우 높음"), false);
+const rejectedBody = JSON.parse(rejected.text) as {
+  status: string;
+  validation: { status: string; reasons: string[] };
+  result: { risk_grade: string };
+};
+assert.equal(rejectedBody.status, "completed");
+assert.equal(rejectedBody.validation.status, "fail");
+assert.equal(rejectedBody.result.risk_grade, "매우 높음");
+assert.equal(rejectedBody.validation.reasons.length > 0, true);
 
 const failed = await getJob({ id: "job_abc", status: "failed", error: { message: "upstream" } });
 assert.equal(JSON.parse(failed.text).error.code, "ANALYSIS_FAILED");

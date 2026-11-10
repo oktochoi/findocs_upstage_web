@@ -8,7 +8,7 @@ import { formatElapsed, reviewLabel } from "@/lib/format";
 import { messages, stageLabels } from "@/lib/messages";
 import { parseLocation } from "@/lib/parse-location";
 import { reviewBadgeStyles, riskStyles } from "@/lib/risk-style";
-import type { AnalysisResult } from "@/lib/types";
+import type { AnalysisResult, ValidationInfo } from "@/lib/types";
 
 export function ResultCard({
   selection,
@@ -40,7 +40,15 @@ export function ResultCard({
   }
 
   if (run.status === "completed") {
-    return <AnalysisResultView result={run.result} source="live" canJump={canJump} onJump={onJump} />;
+    return (
+      <AnalysisResultView
+        result={run.result}
+        source="live"
+        validation={run.validation}
+        canJump={canJump}
+        onJump={onJump}
+      />
+    );
   }
 
   return (
@@ -209,11 +217,13 @@ function MessageBlock({ tone, title, message }: { tone: "info" | "error"; title:
 function AnalysisResultView({
   result,
   source,
+  validation,
   canJump,
   onJump,
 }: {
   result: AnalysisResult;
   source: "live" | "sample";
+  validation?: ValidationInfo;
   canJump: boolean;
   onJump: (page: number) => void;
 }) {
@@ -225,6 +235,26 @@ function AnalysisResultView({
   return (
     <div>
       <p className="sr-only">{summary}</p>
+      {validation?.status === "fail" ? (
+        <div className="mb-4">
+          <h2 className="text-[18px] leading-snug font-semibold">분석 완료 · 결과 검토 필요</h2>
+          <span className="mt-2 inline-flex h-6 items-center rounded-md border border-line bg-[#F8FAFC] px-2 text-[12px] font-semibold text-[#475569]">
+            미검증 결과
+          </span>
+          {validation.reasons.length > 0 ? (
+            <ul className="mt-3 space-y-2 border-t border-line pt-3">
+              {validation.reasons.map((reason, index) => (
+                <li key={`${index}-${reason.slice(0, 24)}`} className="text-[14px] leading-relaxed break-words text-ink">
+                  {reason}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {validation?.status === "unknown" ? (
+        <p className="mb-4 text-[14px] text-muted">검증 상태 확인 불가</p>
+      ) : null}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,13fr)]">
       <section className="overflow-hidden rounded-xl border border-line bg-white" aria-label="판정 요약">
         <div className={`h-0.5 ${style.bar}`} />

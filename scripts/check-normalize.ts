@@ -141,18 +141,28 @@ const validationFailed = normalizeWorkflowOutput({
     { model: "판정_검사", content: [{ text: '{"color":"red","rules":[{"required":true,"passed":false}]}' }] },
   ],
 });
-assert.equal(validationFailed.ok, false);
-if (!validationFailed.ok) {
-  assert.equal(validationFailed.code, "VALIDATION_FAILED");
-  assert.equal("result" in validationFailed, false);
-  assert.equal(validationFailed.message.includes("없음"), false);
+assert.equal(validationFailed.ok, true);
+if (validationFailed.ok) {
+  assert.equal(validationFailed.validation.status, "fail");
+  assert.equal(validationFailed.result.risk_grade, "매우 높음");
+  assert.equal(validationFailed.validation.reasons.length > 0, true);
 }
+
+const branchIsNotFinal = normalizeWorkflowOutput({
+  output: [
+    { model: "위험도_판정", content: [{ text: judgment }] },
+    { model: "Validate - 등급_가르기_1", content: [{ text: "red" }] },
+    { model: "Validate - 판정_검사", content: [{ text: "green" }] },
+  ],
+});
+assert.equal(branchIsNotFinal.ok, true);
+if (branchIsNotFinal.ok) assert.equal(branchIsNotFinal.validation.status, "pass");
 
 const redIsNotGrade = normalizeWorkflowOutput({
   output: [{ model: "판정_검사", content: [{ text: "red" }] }],
 });
 assert.equal(redIsNotGrade.ok, false);
-if (!redIsNotGrade.ok) assert.equal(redIsNotGrade.code, "VALIDATION_FAILED");
+if (!redIsNotGrade.ok) assert.equal(redIsNotGrade.code, "INVALID_RESULT");
 
 const missing = normalizeWorkflowOutput({
   output: [

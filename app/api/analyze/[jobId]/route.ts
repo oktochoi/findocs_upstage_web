@@ -47,7 +47,12 @@ export async function GET(request: Request, context: RouteContext) {
         error: { code: normalized.code, message: normalized.message },
       });
     }
-    return json({ jobId, status: "completed", result: normalized.result });
+    return json({
+      jobId,
+      status: "completed",
+      result: normalized.result,
+      validation: normalized.validation,
+    });
   } catch (error) {
     if (error instanceof UpstageError) {
       const code = error.code === "JOB_NOT_FOUND" ? "job_not_found" : error.code;

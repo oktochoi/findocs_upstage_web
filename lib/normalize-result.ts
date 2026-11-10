@@ -1,5 +1,5 @@
 import { messages } from "@/lib/messages";
-import type { AnalysisResult } from "@/lib/types";
+import type { AnalysisResult, ValidationInfo } from "@/lib/types";
 import { parseAnalysisResult } from "@/lib/validate-result";
 
 const RESULT_KEYS = [
@@ -20,8 +20,8 @@ const PASS_TOKENS = new Set(["green", "pass", "passed", "success", "통과", "�
 const WARN_TOKENS = new Set(["yellow", "warn", "warning", "노랑", "노란색", "황색"]);
 
 export type NormalizeOutcome =
-  | { ok: true; result: AnalysisResult }
-  | { ok: false; code: "INVALID_RESULT" | "VALIDATION_FAILED"; message: string };
+  | { ok: true; result: AnalysisResult; validation: ValidationInfo }
+  | { ok: false; code: "INVALID_RESULT"; message: string };
 
 type Verdict = "fail" | "pass" | "warn" | "unknown";
 
@@ -250,43 +250,6 @@ function readVerdictToken(value: unknown): Exclude<Verdict, "unknown"> | null {
   return null;
 }
 
-function verdictFromRecord(record: Record<string, unknown>): Verdict {
-  if (Array.isArray(record.rules)) {
-    for (const rule of record.rules) {
-      if (!rule || typeof rule !== "object") continue;
-      const item = rule as Record<string, unknown>;
-      if (item.required === true && item.passed === false) return "fail";
-    }
-  }
-  for (const key of VERDICT_KEYS) {
-    if (!(key in record)) continue;
-    const verdict = readVerdictToken(record[key]);
-    if (verdict) return verdict;
-  }
-  return "unknown";
-}
-
-function verdictFromText(text: string): Verdict {
-  const cleaned = stripNoise(text);
-  if (!cleaned || looseFields(cleaned)) return "unknown";
-  const json = findAnyObject(cleaned);
-  if (json) {
-    const verdict = verdictFromRecord(json);
-    if (verdict !== "unknown") return verdict;
-  }
-  for (const line of cleaned.split(/\r?\n/)) {
-    const match = line.trim().match(/^([A-Za-z_]+)\s*[:：]\s*(.+)$/);
-    if (!match || !VERDICT_KEYS.includes(match[1].toLowerCase())) continue;
-    const verdict = readVerdictToken(match[2]);
-    if (verdict) return verdict;
-  }
-  if (cleaned.length <= 20) {
-    const direct = readVerdictToken(cleaned);
-    if (direct) return direct;
-  }
-  return "unknown";
-}
-
 function nameFromText(text: string): string | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith("{")) return null;
@@ -353,12 +316,75 @@ function isJudgmentStep(step: Step): boolean {
   return step.names.some((name) => name.includes("위험도_판정"));
 }
 
-function isValidationStep(step: Step): boolean {
-  return step.names.some((name) => name.includes("판정_검사") || /validate/i.test(name));
+function isFinalInspection(step: Step): boolean {
+  return step.names.some((name) => name.includes("판정_검사"));
 }
 
-function hasRiskField(step: Step): boolean {
-  return step.texts.some((text) => /"risk_grade"\s*:/.test(text) || /(?:^|\n)\s*risk_grade\s*[:：]/.test(text));
+function isValidationStep(step: Step): boolean {
+  return isFinalInspection(step) || step.names.some((name) => /validate/i.test(name));
+}
+
+function failureReason(check: Record<string, unknown>): string | null {
+  const severity = typeof check.severity === "string" ? check.severity.toLowerCase() : "";
+  const blocks = severity === "error" || check.required === true;
+  if (!blocks || check.passed !== false) return null;
+  const name = typeof check.name === "string" && check.name.trim() ? check.name.trim() : "검증 항목";
+  const reason = typeof check.reason === "string" ? check.reason.trim() : "";
+  return reason ? `${name}: ${reason}` : name;
+}
+
+function readFinalValidation(step: Step | undefined): ValidationInfo {
+  if (!step) return { status: "unknown", reasons: [] };
+  let verdict: "pass" | "fail" | "warn" | null = null;
+  let sawSignal = false;
+  const reasons: string[] = [];
+
+  for (const text of step.texts) {
+    const cleaned = stripNoise(decodeWorkflowText(text));
+    if (!cleaned) continue;
+    const direct = cleaned.length <= 24 ? readVerdictToken(unwrapQuotes(cleaned)) : null;
+    if (direct) {
+      sawSignal = true;
+      if (direct === "fail") verdict = "fail";
+      else if (verdict !== "fail") verdict = direct === "warn" ? "warn" : "pass";
+    }
+    for (const line of cleaned.split(/\r?\n/)) {
+      const match = line.trim().match(/^([A-Za-z_]+)\s*[:：]\s*(.+)$/);
+      if (!match || !VERDICT_KEYS.includes(match[1].toLowerCase())) continue;
+      const token = readVerdictToken(match[2]);
+      if (!token) continue;
+      sawSignal = true;
+      if (token === "fail") verdict = "fail";
+      else if (verdict !== "fail") verdict = token === "warn" ? "warn" : "pass";
+    }
+    const record = findAnyObject(cleaned);
+    if (!record) continue;
+    for (const key of VERDICT_KEYS) {
+      if (!(key in record)) continue;
+      const token = readVerdictToken(record[key]);
+      if (!token) continue;
+      sawSignal = true;
+      if (token === "fail") verdict = "fail";
+      else if (verdict !== "fail") verdict = token === "warn" ? "warn" : "pass";
+    }
+    const checks = Array.isArray(record.checks) ? record.checks : Array.isArray(record.rules) ? record.rules : null;
+    if (!checks) continue;
+    sawSignal = true;
+    for (const item of checks) {
+      if (!item || typeof item !== "object") continue;
+      const reason = failureReason(item as Record<string, unknown>);
+      if (reason) reasons.push(reason);
+    }
+  }
+
+  if (reasons.length > 0 || verdict === "fail") {
+    return {
+      status: "fail",
+      reasons: reasons.length > 0 ? reasons : ["최종 판정_검사가 실패로 끝났습니다."],
+    };
+  }
+  if (sawSignal && (verdict === "pass" || verdict === "warn")) return { status: "pass", reasons: [] };
+  return { status: "unknown", reasons: [] };
 }
 
 function parseStep(step: Step): AnalysisResult | null {
@@ -370,64 +396,40 @@ function parseStep(step: Step): AnalysisResult | null {
   return null;
 }
 
-function verdictOf(step: Step): Verdict {
-  if (hasRiskField(step)) return "unknown";
-  for (const text of step.texts) {
-    const verdict = verdictFromText(text);
-    if (verdict !== "unknown") return verdict;
-  }
-  return "unknown";
-}
-
-function validationState(steps: Step[]): Verdict {
-  const named = steps.filter(isValidationStep);
-  const last = steps[steps.length - 1];
-  const pool = named.length > 0 ? named : last && !hasRiskField(last) ? [last] : [];
-  let sawClear = false;
-  for (const step of pool) {
-    const verdict = verdictOf(step);
-    if (verdict === "fail") return "fail";
-    if (verdict === "pass" || verdict === "warn") sawClear = true;
-  }
-  return sawClear ? "pass" : "unknown";
-}
-
 /**
  * Upstage 작업 응답에서 화면용 결과를 고릅니다.
- * 명세의 최종 결과는 output_text JSON 입니다.
+ * 최종 검증은 판정_검사 노드만 보고, 다른 Validate 분기는 실패로 쓰지 않습니다.
  * 위험도_판정 단계가 있으면 그 결과를 먼저 쓰고, 판정_검사의 green/red 만으로는 위험도를 만들지 않습니다.
  */
 export function normalizeWorkflowOutput(job: unknown): NormalizeOutcome {
   const steps = collectSteps(job);
   if (steps.length === 0) return invalid();
-  if (validationState(steps) === "fail") {
-    return { ok: false, code: "VALIDATION_FAILED", message: messages.validationFailed };
-  }
+  const validation = readFinalValidation([...steps].reverse().find(isFinalInspection));
 
   const namedJudgment = steps.find(isJudgmentStep);
   if (namedJudgment) {
     const result = parseStep(namedJudgment);
-    if (result) return { ok: true, result };
+    if (result) return { ok: true, result, validation };
   }
 
   const outputText = steps.find((step) => step.names.includes("output_text"));
   if (outputText) {
     const result = parseStep(outputText);
-    if (result) return { ok: true, result };
+    if (result) return { ok: true, result, validation };
   }
 
   for (let index = steps.length - 1; index >= 0; index -= 1) {
     const step = steps[index];
     if (step.names.includes("output_text") || isValidationStep(step)) continue;
     const result = parseStep(step);
-    if (result) return { ok: true, result };
+    if (result) return { ok: true, result, validation };
   }
 
   for (let index = steps.length - 1; index >= 0; index -= 1) {
     const step = steps[index];
     if (!isValidationStep(step)) continue;
     const result = parseStep(step);
-    if (result) return { ok: true, result };
+    if (result) return { ok: true, result, validation };
   }
   return invalid();
 }

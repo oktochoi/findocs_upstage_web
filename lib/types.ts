@@ -15,7 +15,14 @@ export type AnalysisResult = {
 
 export type ProgressStage = "queued" | "in_progress";
 
+export type ValidationStatus = "pass" | "fail" | "unknown";
+
+export type ValidationInfo = {
+  status: ValidationStatus;
+  reasons: string[];
+};
+
 export type JobView =
   | { status: "active"; stage: ProgressStage }
-  | { status: "completed"; result: AnalysisResult }
+  | { status: "completed"; result: AnalysisResult; validation: ValidationInfo }
   | { status: "failed"; message: string; code: string };

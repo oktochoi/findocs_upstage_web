@@ -1,4 +1,4 @@
-import type { AnalysisResult, ProgressStage } from "@/lib/types";
+import type { AnalysisResult, ProgressStage, ValidationInfo } from "@/lib/types";
 import type { SampleId } from "@/lib/samples";
 
 export type SelectionState =
@@ -23,6 +23,6 @@ export type RunState =
   | { status: "start_error"; message: string }
   | { status: "job_failed"; message: string }
   | { status: "invalid_result"; jobId: string; message: string; startedAt: number }
-  | { status: "completed"; result: AnalysisResult };
+  | { status: "completed"; result: AnalysisResult; validation: ValidationInfo };
 
 export type BannerState = { tone: "error" | "info"; message: string } | null;

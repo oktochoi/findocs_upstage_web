@@ -135,6 +135,11 @@ export function Inspector() {
               실시간 분석
             </span>
           ) : null}
+          {!inspection.sampleResult && inspection.run.status === "completed" && inspection.run.validation.status === "fail" ? (
+            <span className="inline-flex h-6 items-center rounded-md border border-line bg-[#F8FAFC] px-2 text-[12px] font-semibold text-[#475569]">
+              미검증 결과
+            </span>
+          ) : null}
         </div>
         {inspection.sampleResult ? <p className="mt-1 text-[13px] text-muted">원본 PDF 미제공</p> : null}
         {showSamples ? (

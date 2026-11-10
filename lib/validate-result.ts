@@ -1,4 +1,4 @@
-import { RISK_GRADES, type AnalysisResult, type JobView, type ProgressStage } from "@/lib/types";
+import { RISK_GRADES, type AnalysisResult, type JobView, type ProgressStage, type ValidationInfo } from "@/lib/types";
 import { messages } from "@/lib/messages";
 
 function isStringList(value: unknown): value is string[] {
@@ -33,6 +33,16 @@ export function parseAnalysisResult(input: unknown): AnalysisResult | null {
 
 const KNOWN_STAGES = new Set<ProgressStage>(["queued", "in_progress"]);
 
+function parseValidation(input: unknown): ValidationInfo {
+  if (!input || typeof input !== "object") return { status: "unknown", reasons: [] };
+  const record = input as { status?: unknown; reasons?: unknown };
+  const status = record.status === "pass" || record.status === "fail" || record.status === "unknown" ? record.status : "unknown";
+  const reasons = Array.isArray(record.reasons)
+    ? record.reasons.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+  return { status, reasons };
+}
+
 function failedDetails(input: unknown): { code: string; message: string } {
   if (!input || typeof input !== "object") return { code: "ANALYSIS_FAILED", message: messages.analysisFailed };
   const error = (input as { error?: unknown }).error;
@@ -51,7 +61,7 @@ export function parseJobView(input: unknown): JobView | null {
   if (status === "completed") {
     const result = parseAnalysisResult((input as { result?: unknown }).result);
     if (!result) return null;
-    return { status: "completed", result };
+    return { status: "completed", result, validation: parseValidation((input as { validation?: unknown }).validation) };
   }
 
   if (status === "failed") {

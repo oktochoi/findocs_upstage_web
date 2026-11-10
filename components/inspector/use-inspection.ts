@@ -70,7 +70,7 @@ export function useInspection() {
         if (view.status === "completed") {
           setRun((current) => {
             if (current.status !== "active" || current.jobId !== jobId) return current;
-            return { status: "completed", result: view.result };
+            return { status: "completed", result: view.result, validation: view.validation };
           });
           setFocusTick((tick) => tick + 1);
           return;
