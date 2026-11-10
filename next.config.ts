@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  async headers() {
+    return [
+      {
+        source: "/pdfjs/pdf.worker.min.mjs",
+        headers: [{ key: "Content-Type", value: "text/javascript; charset=utf-8" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
